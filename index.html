@@ -47,7 +47,7 @@
       margin: 4px;
     }
     button.secondary { background: #766b5e; }
-    button:disabled { opacity: .55; cursor: wait; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
     .result { margin: 12px 0 8px; font-size: clamp(1.35rem, 4vw, 2.2rem); font-weight: 800; min-height: 1.2em; }
     .selected-image {
       width: 100%; max-width: 330px; border-radius: 18px; background: #fff;
@@ -112,7 +112,7 @@
 <body>
   <main class="app">
     <h1>Gefühlskarten-Rad</h1>
-    <p class="sub">Gezogene Karten werden für alle Nutzer synchron entfernt.</p>
+    <p class="sub">Gezogene Karten werden für alle Nutzer synchron entfernt. Jeder Benutzer kann nur einmal drehen.</p>
 
     <section class="layout">
       <div class="wheel-panel">
@@ -154,6 +154,9 @@
       appId: "1:787130455663:web:93dbe2f9100c2c7f349f9a"
     };
 
+    const HAS_SPUN_KEY = "gefuehlskartenRad_hasSpun";
+    const LAST_DRAWN_KEY = "gefuehlskartenRad_lastDrawn";
+
     const ALL_ITEMS = [{"num": 1, "label": "Gefühl_01", "image": "assets/Gefühl_01.jpg"}, {"num": 2, "label": "Gefühl_02", "image": "assets/Gefühl_02.jpg"}, {"num": 3, "label": "Gefühl_03", "image": "assets/Gefühl_03.jpg"}, {"num": 4, "label": "Gefühl_04", "image": "assets/Gefühl_04.jpg"}, {"num": 5, "label": "Gefühl_05", "image": "assets/Gefühl_05.jpg"}, {"num": 6, "label": "Gefühl_06", "image": "assets/Gefühl_06.jpg"}, {"num": 7, "label": "Gefühl_07", "image": "assets/Gefühl_07.jpg"}, {"num": 8, "label": "Gefühl_08", "image": "assets/Gefühl_08.jpg"}, {"num": 9, "label": "Gefühl_09", "image": "assets/Gefühl_09.jpg"}, {"num": 10, "label": "Gefühl_10", "image": "assets/Gefühl_10.jpg"}, {"num": 11, "label": "Gefühl_11", "image": "assets/Gefühl_11.jpg"}, {"num": 12, "label": "Gefühl_12", "image": "assets/Gefühl_12.jpg"}, {"num": 13, "label": "Gefühl_13", "image": "assets/Gefühl_13.jpg"}, {"num": 14, "label": "Gefühl_14", "image": "assets/Gefühl_14.jpg"}, {"num": 15, "label": "Gefühl_15", "image": "assets/Gefühl_15.jpg"}, {"num": 16, "label": "Gefühl_16", "image": "assets/Gefühl_16.jpg"}, {"num": 17, "label": "Gefühl_17", "image": "assets/Gefühl_17.jpg"}, {"num": 18, "label": "Gefühl_18", "image": "assets/Gefühl_18.jpg"}, {"num": 19, "label": "Gefühl_19", "image": "assets/Gefühl_19.jpg"}, {"num": 20, "label": "Gefühl_20", "image": "assets/Gefühl_20.jpg"}, {"num": 21, "label": "Gefühl_21", "image": "assets/Gefühl_21.jpg"}, {"num": 22, "label": "Gefühl_22", "image": "assets/Gefühl_22.jpg"}, {"num": 23, "label": "Gefühl_23", "image": "assets/Gefühl_23.jpg"}, {"num": 24, "label": "Gefühl_24", "image": "assets/Gefühl_24.jpg"}, {"num": 25, "label": "Gefühl_25", "image": "assets/Gefühl_25.jpg"}, {"num": 26, "label": "Gefühl_26", "image": "assets/Gefühl_26.jpg"}, {"num": 27, "label": "Gefühl_27", "image": "assets/Gefühl_27.jpg"}, {"num": 28, "label": "Gefühl_28", "image": "assets/Gefühl_28.jpg"}, {"num": 29, "label": "Gefühl_29", "image": "assets/Gefühl_29.jpg"}, {"num": 30, "label": "Gefühl_30", "image": "assets/Gefühl_30.jpg"}, {"num": 31, "label": "Gefühl_31", "image": "assets/Gefühl_31.jpg"}, {"num": 32, "label": "Gefühl_32", "image": "assets/Gefühl_32.jpg"}, {"num": 33, "label": "Gefühl_33", "image": "assets/Gefühl_33.jpg"}, {"num": 34, "label": "Gefühl_34", "image": "assets/Gefühl_34.jpg"}, {"num": 35, "label": "Gefühl_35", "image": "assets/Gefühl_35.jpg"}, {"num": 36, "label": "Gefühl_36", "image": "assets/Gefühl_36.jpg"}, {"num": 37, "label": "Gefühl_37", "image": "assets/Gefühl_37.jpg"}, {"num": 38, "label": "Gefühl_38", "image": "assets/Gefühl_38.jpg"}, {"num": 39, "label": "Gefühl_39", "image": "assets/Gefühl_39.jpg"}];
     const ALL_NUMBERS = ALL_ITEMS.map(item => item.num);
 
@@ -190,6 +193,31 @@
     let remaining = [...ALL_NUMBERS];
     let drawn = [];
     let currentSegment = 2 * Math.PI / remaining.length;
+
+    function hasUserSpun() {
+      return localStorage.getItem(HAS_SPUN_KEY) === "true";
+    }
+
+    function markUserAsSpun(num) {
+      localStorage.setItem(HAS_SPUN_KEY, "true");
+      localStorage.setItem(LAST_DRAWN_KEY, String(num));
+    }
+
+    function clearUserSpinLock() {
+      localStorage.removeItem(HAS_SPUN_KEY);
+      localStorage.removeItem(LAST_DRAWN_KEY);
+    }
+
+    function showAlreadySpunMessage() {
+      const lastDrawn = Number(localStorage.getItem(LAST_DRAWN_KEY));
+      if (lastDrawn) {
+        const item = itemByNum(lastDrawn);
+        if (item) showCard(item);
+      }
+      result.textContent = lastDrawn ? result.textContent : "Du hast bereits gedreht.";
+      placeholder.textContent = "Du hast bereits gedreht.";
+      statusEl.textContent = "Du hast bereits gedreht. Bitte warte auf das Zurücksetzen.";
+    }
 
     function itemByNum(num) {
       return ALL_ITEMS.find(item => item.num === num);
@@ -320,7 +348,13 @@
 
     function updateStatus() {
       remainingText.textContent = `Noch übrig: ${remaining.length}`;
-      spinBtn.disabled = spinning || remaining.length === 0;
+      spinBtn.disabled = spinning || remaining.length === 0 || hasUserSpun();
+
+      if (hasUserSpun() && !spinning) {
+        spinBtn.textContent = "Bereits gedreht";
+      } else {
+        spinBtn.textContent = "Rad drehen";
+      }
     }
 
     async function ensureInitialState() {
@@ -346,9 +380,15 @@
 
         if (data.lastDrawn) {
           const item = itemByNum(data.lastDrawn);
-          if (item && !spinning) showCard(item);
+          if (item && !spinning && !hasUserSpun()) showCard(item);
         }
-        statusEl.textContent = "Synchronisiert.";
+
+        if (hasUserSpun() && !spinning) {
+          showAlreadySpunMessage();
+        } else {
+          statusEl.textContent = "Synchronisiert.";
+        }
+
         statusEl.classList.remove("error");
       }
     }, (error) => {
@@ -386,24 +426,36 @@
     }
 
     async function resetWheel() {
-      const ok = confirm("Rad wirklich zurücksetzen? Alle Karten sind dann wieder verfügbar.");
+      const ok = confirm("Rad wirklich zurücksetzen? Alle Karten sind dann wieder verfügbar. Auch die lokale Einmal-drehen-Sperre wird auf diesem Gerät aufgehoben.");
       if (!ok) return;
+
+      clearUserSpinLock();
+
       await setDoc(wheelRef, {
         remaining: ALL_NUMBERS,
         drawn: [],
         lastDrawn: null,
         updatedAt: Date.now()
       });
+
       result.textContent = "";
       selectedImage.style.display = "none";
       placeholder.style.display = "flex";
       placeholder.textContent = "Noch keine Karte gezogen";
       drawn = [];
       renderUsedList();
+      updateStatus();
+      statusEl.textContent = "Zurückgesetzt. Du kannst wieder drehen.";
     }
 
     async function spin() {
       if (spinning || remaining.length === 0) return;
+
+      if (hasUserSpun()) {
+        showAlreadySpunMessage();
+        updateStatus();
+        return;
+      }
 
       spinning = true;
       updateStatus();
@@ -441,10 +493,12 @@
           dingSound.play().catch(error => console.log("Ding konnte nicht gestartet werden:", error));
 
           showCard(chosen);
+          markUserAsSpun(chosenNum);
           removeDrawn(chosenNum).catch(console.error);
 
           spinning = false;
           updateStatus();
+          statusEl.textContent = "Du hast gedreht. Ein weiteres Drehen ist auf diesem Gerät gesperrt.";
         }
       }
 
@@ -455,7 +509,10 @@
     resetBtn.addEventListener("click", resetWheel);
 
     drawWheel();
-    ensureInitialState().catch(error => {
+    ensureInitialState().then(() => {
+      updateStatus();
+      if (hasUserSpun()) showAlreadySpunMessage();
+    }).catch(error => {
       statusEl.textContent = "Firebase-Start fehlgeschlagen. Firestore aktivieren und Regeln prüfen.";
       statusEl.classList.add("error");
       console.error(error);
