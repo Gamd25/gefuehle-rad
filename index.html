@@ -135,7 +135,7 @@
         <h2>Gezogene Karte</h2>
         <div id="placeholder" class="placeholder">Noch keine Karte gezogen</div>
         <img id="selectedImage" class="selected-image" alt="Gezogene Gefühlskarte">
-        <button id="downloadBtn" class="secondary download-button">Bild herunterladen</button>
+        <button id="downloadBtn" class="secondary download-button">Bild in neuem Tab öffnen</button>
       </aside>
 
       <aside class="used-panel">
@@ -469,12 +469,11 @@
         return;
       }
 
-      const link = document.createElement("a");
-      link.href = currentDrawnItem.image;
-      link.download = `${currentDrawnItem.label}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const imageWindow = window.open(currentDrawnItem.image, "_blank");
+
+      if (!imageWindow) {
+        alert("Der neue Tab wurde vom Browser blockiert. Bitte Pop-ups für diese Seite erlauben.");
+      }
     }
 
     async function spin() {
