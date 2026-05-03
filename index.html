@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gefühlskarten-Rad synchron</title>
+  <style>
+    :root { --wheel-size: min(82vw, 500px); }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f4ec; color: #222;
+      display: flex; justify-content: center; align-items: flex-start;
+    }
+    .app { width: min(96vw, 980px); padding: 22px; text-align: center; }
+    h1 { margin: 0 0 6px; font-size: clamp(1.45rem, 4vw, 2.4rem); }
+    .sub { margin: 0 0 18px; color: #555; font-size: 1rem; }
+    .layout {
+      display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start;
+    }
+    @media (min-width: 1050px) {
+      .layout { grid-template-columns: minmax(420px, 1fr) 330px 260px; }
+    }
+    .wheel-panel, .card-panel {
+      background: rgba(255,255,255,.78); border-radius: 24px; padding: 18px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.11);
+    }
+    .wheel-wrap {
+      position: relative; width: var(--wheel-size); height: var(--wheel-size);
+      margin: 0 auto 18px;
+    }
+    .pointer {
+      position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 22px solid transparent; border-right: 22px solid transparent;
+      border-top: 42px solid #222; z-index: 3;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,.25));
+    }
+    canvas {
+      width: var(--wheel-size); height: var(--wheel-size); border-radius: 50%;
+      box-shadow: 0 10px 30px rgba(0,0,0,.18); background: white;
+    }
+    button {
+      font-size: 1.05rem; padding: 12px 24px; border: 0; border-radius: 999px;
+      cursor: pointer; background: #222; color: white; box-shadow: 0 5px 14px rgba(0,0,0,.2);
+      margin: 4px;
+    }
+    button.secondary { background: #766b5e; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .result { margin: 12px 0 8px; font-size: clamp(1.35rem, 4vw, 2.2rem); font-weight: 800; min-height: 1.2em; }
+    .selected-image {
+      width: 100%; max-width: 330px; border-radius: 18px; background: #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,.14); display: none; margin: 8px auto 0;
+    }
+    .placeholder {
+      min-height: 430px; display: flex; align-items: center; justify-content: center;
+      border: 3px dashed #d8d0c0; border-radius: 18px; color: #777; padding: 20px; background: #fffaf0;
+    }
+    .card-panel h2 { margin: 0 0 12px; font-size: 1.25rem; }
+    .small { margin-top: 10px; color: #666; font-size: .92rem; }
+    .status { margin: 8px 0; font-size: .95rem; color: #4a4a4a; }
+    .error { color: #a40000; font-weight: 700; }
+    .used-panel {
+      background: rgba(255,255,255,.78);
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.11);
+      text-align: left;
+    }
+    .used-panel h2 {
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+      text-align: center;
+    }
+    .used-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 560px;
+      overflow-y: auto;
+    }
+    .used-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      margin-bottom: 8px;
+      border-radius: 12px;
+      background: #fffaf0;
+      border: 1px solid #eadfce;
+      font-weight: 700;
+    }
+    .used-list img {
+      width: 42px;
+      height: 56px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      background: white;
+    }
+    .empty-used {
+      color: #777;
+      text-align: center;
+      border: 3px dashed #d8d0c0;
+      border-radius: 18px;
+      padding: 20px;
+      background: #fffaf0;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Gefühlskarten-Rad</h1>
+    <p class="sub">Gezogene Karten werden für alle Nutzer synchron entfernt.</p>
+
+    <section class="layout">
+      <div class="wheel-panel">
+        <div class="wheel-wrap">
+          <div class="pointer" aria-hidden="true"></div>
+          <canvas id="wheel" width="1200" height="1200"></canvas>
+        </div>
+        <button id="spin">Rad drehen</button>
+        <button id="reset" class="secondary">Rad zurücksetzen</button>
+        <div class="result" id="result" aria-live="polite"></div>
+        <div class="status" id="status">Verbinde mit Firebase ...</div>
+        <div class="small" id="remainingText">Noch übrig: 39</div>
+      </div>
+
+      <aside class="card-panel">
+        <h2>Gezogene Karte</h2>
+        <div id="placeholder" class="placeholder">Noch keine Karte gezogen</div>
+        <img id="selectedImage" class="selected-image" alt="Gezogene Gefühlskarte">
+      </aside>
+
+      <aside class="used-panel">
+        <h2>Bereits gezogen</h2>
+        <div id="emptyUsed" class="empty-used">Noch keine Karte verwendet</div>
+        <ul id="usedList" class="used-list"></ul>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCCu3tQqwYq3QNTB-m6wg9iaZfTbrflFbM",
+      authDomain: "gefuehl-rad.firebaseapp.com",
+      projectId: "gefuehl-rad",
+      storageBucket: "gefuehl-rad.firebasestorage.app",
+      messagingSenderId: "787130455663",
+      appId: "1:787130455663:web:93dbe2f9100c2c7f349f9a"
+    };
+
+    const ALL_ITEMS = [{"num": 1, "label": "Gefühl_01", "image": "assets/Gefühl_01.jpg"}, {"num": 2, "label": "Gefühl_02", "image": "assets/Gefühl_02.jpg"}, {"num": 3, "label": "Gefühl_03", "image": "assets/Gefühl_03.jpg"}, {"num": 4, "label": "Gefühl_04", "image": "assets/Gefühl_04.jpg"}, {"num": 5, "label": "Gefühl_05", "image": "assets/Gefühl_05.jpg"}, {"num": 6, "label": "Gefühl_06", "image": "assets/Gefühl_06.jpg"}, {"num": 7, "label": "Gefühl_07", "image": "assets/Gefühl_07.jpg"}, {"num": 8, "label": "Gefühl_08", "image": "assets/Gefühl_08.jpg"}, {"num": 9, "label": "Gefühl_09", "image": "assets/Gefühl_09.jpg"}, {"num": 10, "label": "Gefühl_10", "image": "assets/Gefühl_10.jpg"}, {"num": 11, "label": "Gefühl_11", "image": "assets/Gefühl_11.jpg"}, {"num": 12, "label": "Gefühl_12", "image": "assets/Gefühl_12.jpg"}, {"num": 13, "label": "Gefühl_13", "image": "assets/Gefühl_13.jpg"}, {"num": 14, "label": "Gefühl_14", "image": "assets/Gefühl_14.jpg"}, {"num": 15, "label": "Gefühl_15", "image": "assets/Gefühl_15.jpg"}, {"num": 16, "label": "Gefühl_16", "image": "assets/Gefühl_16.jpg"}, {"num": 17, "label": "Gefühl_17", "image": "assets/Gefühl_17.jpg"}, {"num": 18, "label": "Gefühl_18", "image": "assets/Gefühl_18.jpg"}, {"num": 19, "label": "Gefühl_19", "image": "assets/Gefühl_19.jpg"}, {"num": 20, "label": "Gefühl_20", "image": "assets/Gefühl_20.jpg"}, {"num": 21, "label": "Gefühl_21", "image": "assets/Gefühl_21.jpg"}, {"num": 22, "label": "Gefühl_22", "image": "assets/Gefühl_22.jpg"}, {"num": 23, "label": "Gefühl_23", "image": "assets/Gefühl_23.jpg"}, {"num": 24, "label": "Gefühl_24", "image": "assets/Gefühl_24.jpg"}, {"num": 25, "label": "Gefühl_25", "image": "assets/Gefühl_25.jpg"}, {"num": 26, "label": "Gefühl_26", "image": "assets/Gefühl_26.jpg"}, {"num": 27, "label": "Gefühl_27", "image": "assets/Gefühl_27.jpg"}, {"num": 28, "label": "Gefühl_28", "image": "assets/Gefühl_28.jpg"}, {"num": 29, "label": "Gefühl_29", "image": "assets/Gefühl_29.jpg"}, {"num": 30, "label": "Gefühl_30", "image": "assets/Gefühl_30.jpg"}, {"num": 31, "label": "Gefühl_31", "image": "assets/Gefühl_31.jpg"}, {"num": 32, "label": "Gefühl_32", "image": "assets/Gefühl_32.jpg"}, {"num": 33, "label": "Gefühl_33", "image": "assets/Gefühl_33.jpg"}, {"num": 34, "label": "Gefühl_34", "image": "assets/Gefühl_34.jpg"}, {"num": 35, "label": "Gefühl_35", "image": "assets/Gefühl_35.jpg"}, {"num": 36, "label": "Gefühl_36", "image": "assets/Gefühl_36.jpg"}, {"num": 37, "label": "Gefühl_37", "image": "assets/Gefühl_37.jpg"}, {"num": 38, "label": "Gefühl_38", "image": "assets/Gefühl_38.jpg"}, {"num": 39, "label": "Gefühl_39", "image": "assets/Gefühl_39.jpg"}];
+    const ALL_NUMBERS = ALL_ITEMS.map(item => item.num);
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const wheelRef = doc(db, "wheelState", "current");
+
+    const spinSound = new Audio("assets/holz_ratsche.wav");
+    spinSound.loop = true;
+    spinSound.volume = 0.85;
+
+    const dingSound = new Audio("assets/ding.wav");
+    dingSound.volume = 0.85;
+
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const spinBtn = document.getElementById("spin");
+    const resetBtn = document.getElementById("reset");
+    const result = document.getElementById("result");
+    const selectedImage = document.getElementById("selectedImage");
+    const placeholder = document.getElementById("placeholder");
+    const statusEl = document.getElementById("status");
+    const remainingText = document.getElementById("remainingText");
+    const usedList = document.getElementById("usedList");
+    const emptyUsed = document.getElementById("emptyUsed");
+
+    const size = canvas.width;
+    const cx = size / 2;
+    const cy = size / 2;
+    const radius = size * 0.47;
+
+    let rotation = 0;
+    let spinning = false;
+    let remaining = [...ALL_NUMBERS];
+    let drawn = [];
+    let currentSegment = 2 * Math.PI / remaining.length;
+
+    function itemByNum(num) {
+      return ALL_ITEMS.find(item => item.num === num);
+    }
+
+    function colorFor(i) {
+      const hue = (i * 37) % 360;
+      return `hsl(${hue} 78% 72%)`;
+    }
+
+    function drawWheel() {
+      ctx.clearRect(0, 0, size, size);
+
+      if (!remaining.length) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.strokeStyle = "#222";
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        ctx.fillStyle = "#222";
+        ctx.font = "bold 56px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Fertig!", 0, -20);
+        ctx.font = "30px system-ui, sans-serif";
+        ctx.fillText("Alle Karten gezogen", 0, 40);
+        ctx.restore();
+        return;
+      }
+
+      currentSegment = 2 * Math.PI / remaining.length;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
+
+      for (let i = 0; i < remaining.length; i++) {
+        const item = itemByNum(remaining[i]);
+        const start = i * currentSegment - Math.PI / 2;
+        const end = start + currentSegment;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, start, end);
+        ctx.closePath();
+        ctx.fillStyle = colorFor(item.num);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255,255,255,.95)";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.rotate(start + currentSegment / 2);
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#111";
+        ctx.font = remaining.length > 24 ? "bold 29px system-ui, sans-serif" : "bold 35px system-ui, sans-serif";
+        ctx.fillText(item.label, radius - 24, 0);
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 82, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      ctx.fillStyle = "#222";
+      ctx.font = "bold 30px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("START", 0, 0);
+      ctx.restore();
+    }
+
+    function selectedIndex() {
+      if (!remaining.length) return -1;
+      const pointerAngle = -Math.PI / 2;
+      let angle = (pointerAngle - rotation + Math.PI / 2) % (2 * Math.PI);
+      if (angle < 0) angle += 2 * Math.PI;
+      return Math.floor(angle / currentSegment) % remaining.length;
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function showCard(item) {
+      result.textContent = item.label;
+      selectedImage.src = item.image;
+      selectedImage.alt = item.label;
+      selectedImage.style.display = "block";
+      placeholder.style.display = "none";
+    }
+
+    function renderUsedList() {
+      usedList.innerHTML = "";
+
+      if (!drawn.length) {
+        emptyUsed.style.display = "block";
+        return;
+      }
+
+      emptyUsed.style.display = "none";
+
+      drawn.forEach(num => {
+        const item = itemByNum(num);
+        if (!item) return;
+
+        const li = document.createElement("li");
+        const img = document.createElement("img");
+        const span = document.createElement("span");
+
+        img.src = item.image;
+        img.alt = item.label;
+        span.textContent = item.label;
+
+        li.appendChild(img);
+        li.appendChild(span);
+        usedList.appendChild(li);
+      });
+    }
+
+    function updateStatus() {
+      remainingText.textContent = `Noch übrig: ${remaining.length}`;
+      spinBtn.disabled = spinning || remaining.length === 0;
+    }
+
+    async function ensureInitialState() {
+      const snap = await getDoc(wheelRef);
+      if (!snap.exists()) {
+        await setDoc(wheelRef, {
+          remaining: ALL_NUMBERS,
+          drawn: [],
+          lastDrawn: null,
+          updatedAt: Date.now()
+        });
+      }
+    }
+
+    onSnapshot(wheelRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        remaining = Array.isArray(data.remaining) ? data.remaining : [...ALL_NUMBERS];
+        drawn = Array.isArray(data.drawn) ? data.drawn : ALL_NUMBERS.filter(n => !remaining.includes(n));
+        drawWheel();
+        renderUsedList();
+        updateStatus();
+
+        if (data.lastDrawn) {
+          const item = itemByNum(data.lastDrawn);
+          if (item && !spinning) showCard(item);
+        }
+        statusEl.textContent = "Synchronisiert.";
+        statusEl.classList.remove("error");
+      }
+    }, (error) => {
+      statusEl.textContent = "Firebase-Fehler: Firestore-Regeln prüfen.";
+      statusEl.classList.add("error");
+      console.error(error);
+    });
+
+    async function removeDrawn(num) {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(wheelRef);
+        let current = snap.exists() && Array.isArray(snap.data().remaining)
+          ? snap.data().remaining
+          : [...ALL_NUMBERS];
+
+        let currentDrawn = snap.exists() && Array.isArray(snap.data().drawn)
+          ? snap.data().drawn
+          : ALL_NUMBERS.filter(n => !current.includes(n));
+
+        if (current.includes(num)) {
+          current = current.filter(n => n !== num);
+        }
+
+        if (!currentDrawn.includes(num)) {
+          currentDrawn.push(num);
+        }
+
+        transaction.set(wheelRef, {
+          remaining: current,
+          drawn: currentDrawn,
+          lastDrawn: num,
+          updatedAt: Date.now()
+        });
+      });
+    }
+
+    async function resetWheel() {
+      const ok = confirm("Rad wirklich zurücksetzen? Alle Karten sind dann wieder verfügbar.");
+      if (!ok) return;
+      await setDoc(wheelRef, {
+        remaining: ALL_NUMBERS,
+        drawn: [],
+        lastDrawn: null,
+        updatedAt: Date.now()
+      });
+      result.textContent = "";
+      selectedImage.style.display = "none";
+      placeholder.style.display = "flex";
+      placeholder.textContent = "Noch keine Karte gezogen";
+      drawn = [];
+      renderUsedList();
+    }
+
+    async function spin() {
+      if (spinning || remaining.length === 0) return;
+
+      spinning = true;
+      updateStatus();
+      result.textContent = "";
+      selectedImage.style.display = "none";
+      placeholder.style.display = "flex";
+      placeholder.textContent = "Das Rad dreht ...";
+
+      spinSound.currentTime = 0;
+      spinSound.play().catch(error => console.log("Sound konnte nicht gestartet werden:", error));
+
+      const startRotation = rotation;
+      const extraTurns = 6 + Math.random() * 4;
+      const randomOffset = Math.random() * 2 * Math.PI;
+      const targetRotation = startRotation + extraTurns * 2 * Math.PI + randomOffset;
+      const duration = 4300;
+      const startTime = performance.now();
+
+      function animate(now) {
+        const t = Math.min((now - startTime) / duration, 1);
+        rotation = startRotation + (targetRotation - startRotation) * easeOutCubic(t);
+        drawWheel();
+
+        if (t < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          rotation = rotation % (2 * Math.PI);
+          const index = selectedIndex();
+          const chosenNum = remaining[index];
+          const chosen = itemByNum(chosenNum);
+
+          spinSound.pause();
+          spinSound.currentTime = 0;
+          dingSound.currentTime = 0;
+          dingSound.play().catch(error => console.log("Ding konnte nicht gestartet werden:", error));
+
+          showCard(chosen);
+          removeDrawn(chosenNum).catch(console.error);
+
+          spinning = false;
+          updateStatus();
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    spinBtn.addEventListener("click", spin);
+    resetBtn.addEventListener("click", resetWheel);
+
+    drawWheel();
+    ensureInitialState().catch(error => {
+      statusEl.textContent = "Firebase-Start fehlgeschlagen. Firestore aktivieren und Regeln prüfen.";
+      statusEl.classList.add("error");
+      console.error(error);
+    });
+  </script>
+</body>
+</html>
