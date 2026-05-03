@@ -198,6 +198,7 @@
     let remaining = [...ALL_NUMBERS];
     let drawn = [];
     let currentSegment = 2 * Math.PI / remaining.length;
+    let currentDrawnItem = null;
 
     function hasUserSpun() {
       return localStorage.getItem(HAS_SPUN_KEY) === "true";
@@ -303,19 +304,24 @@
     }
 
     function showCard(item) {
+      currentDrawnItem = item;
       result.textContent = item.label;
       selectedImage.src = item.image;
       selectedImage.alt = item.label;
       selectedImage.style.display = "block";
       placeholder.style.display = "none";
       downloadBtn.style.display = "inline-block";
+      downloadBtn.disabled = false;
     }
 
     function hideCard() {
+      currentDrawnItem = null;
       result.textContent = "";
       selectedImage.removeAttribute("src");
       selectedImage.style.display = "none";
       downloadBtn.style.display = "none";
+      downloadBtn.disabled = true;
+      downloadBtn.disabled = true;
       placeholder.style.display = "flex";
       placeholder.textContent = "Noch keine Karte gezogen";
     }
@@ -446,35 +452,18 @@
       updateStatus();
     }
 
-    async function downloadSelectedImage() {
-      if (!selectedImage.src) return;
-
-      const fileName = `${selectedImage.alt || "Gefuehlskarte"}.jpg`;
-
-      try {
-        const response = await fetch(selectedImage.src);
-        if (!response.ok) throw new Error("Bild konnte nicht geladen werden.");
-
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-
-        URL.revokeObjectURL(blobUrl);
-      } catch (error) {
-        const link = document.createElement("a");
-        link.href = selectedImage.src;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        console.error("Download-Fallback verwendet:", error);
+    function downloadSelectedImage() {
+      if (!currentDrawnItem) {
+        alert("Es wurde noch keine Karte gezogen.");
+        return;
       }
+
+      const link = document.createElement("a");
+      link.href = currentDrawnItem.image;
+      link.download = `${currentDrawnItem.label}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     async function spin() {
