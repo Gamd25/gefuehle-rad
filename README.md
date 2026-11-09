@@ -1,4 +1,5 @@
 # Gefühlskarten-Rad mit Firebase-Synchronisation
+https://gamd25.github.io/gefuehle-rad/
 
 Diese Version entfernt gezogene Karten für alle Nutzer synchron.
 
